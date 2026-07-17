@@ -62,23 +62,17 @@
       line-height: 1.45;
     }
 
-    .countdown-text {
-      margin: 12px 0 18px;
-      color: #0b45a0;
-      font-size: 14px;
-      font-weight: 600;
+    .countdown {
+      font-weight: 800;
+      color: #082f72;
     }
 
-    .button-group {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      margin-top: 12px;
+    .actions {
+      display: grid;
+      gap: 10px;
     }
 
-    .open-button,
-    .skip-button,
-    .share-button {
+    .action-button {
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -87,61 +81,25 @@
       border: 1px solid rgba(8, 47, 114, 0.12);
       border-radius: 8px;
       padding: 12px 16px;
-      font-weight: 800;
-      text-decoration: none;
-      cursor: pointer;
-      font-family: "Segoe UI", Arial, sans-serif;
-      font-size: 16px;
-      transition: all 0.3s ease;
-    }
-
-    .open-button {
       background: #0b45a0;
       color: #ffffff;
+      font-weight: 800;
+      text-decoration: none;
+      font: inherit;
+      cursor: pointer;
       box-shadow: 0 8px 18px rgba(20, 61, 120, 0.2);
-    }
-
-    .open-button:hover {
-      background: #0a3a7f;
-      box-shadow: 0 10px 24px rgba(20, 61, 120, 0.3);
     }
 
     .skip-button {
       background: #ffffff;
       color: #0b45a0;
-      border: 2px solid #0b45a0;
       box-shadow: none;
     }
 
-    .skip-button:hover {
-      background: #f0f5ff;
-    }
-
-    .skip-button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      background: #ffffff;
-    }
-
-    .share-button {
-      background: #4CAF50;
-      color: #ffffff;
-      box-shadow: 0 8px 18px rgba(76, 175, 80, 0.2);
-    }
-
-    .share-button:hover {
-      background: #45a049;
-      box-shadow: 0 10px 24px rgba(76, 175, 80, 0.3);
-    }
-
-    .share-button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      background: #4CAF50;
-    }
-
-    .hidden {
-      display: none;
+    .install-help {
+      min-height: 42px;
+      margin: 14px 0 0;
+      font-size: 14px;
     }
   </style>
 </head>
@@ -150,68 +108,80 @@
     <section class="launch">
       <img src="icon-180.png" alt="PED Roster icon">
       <h1>PED Roster</h1>
-      <p>Opening the roster...</p>
-      <div class="countdown-text">
-        Redirecting in <span id="countdown">5</span> seconds
+      <p id="redirectStatus" aria-live="polite">Opening the roster in <span id="countdown" class="countdown">3</span> seconds...</p>
+      <div class="actions">
+        <button id="installButton" class="action-button" type="button">Add to Home Screen</button>
+        <a id="skipButton" class="action-button skip-button" href="https://script.google.com/macros/s/AKfycbzZFTKAzSIpED--f5LjQBp6rrvn61OBfhhymaF3n45Gdyt8CdRyQN6S4GOAm5PYL4PLwQ/exec">Skip countdown</a>
       </div>
-      <div class="button-group">
-        <a id="openRoster" class="open-button" href="https://script.google.com/macros/s/AKfycbzZFTKAzSIpED--f5LjQBp6rrvn61OBfhhymaF3n45Gdyt8CdRyQN6S4GOAm5PYL4PLwQ/exec">Open roster</a>
-        <button id="skipButton" class="skip-button">Skip (5s)</button>
-        <button id="shareButton" class="share-button hidden">📱 Share to Homescreen</button>
-      </div>
+      <p id="installHelp" class="install-help" aria-live="polite"></p>
     </section>
   </main>
   <script>
     var rosterUrl = 'https://script.google.com/macros/s/AKfycbzZFTKAzSIpED--f5LjQBp6rrvn61OBfhhymaF3n45Gdyt8CdRyQN6S4GOAm5PYL4PLwQ/exec';
-    var countdownSeconds = 5;
-    var countdownInterval;
-    var deferredPrompt;
+    var deferredInstallPrompt = null;
+    var redirectTimer = null;
+    var countdownTimer = null;
+    var countdownValue = 3;
+
+    function openRoster() {
+      window.location.replace(rosterUrl);
+    }
+
+    function stopCountdown(message) {
+      window.clearTimeout(redirectTimer);
+      window.clearInterval(countdownTimer);
+      redirectTimer = null;
+      countdownTimer = null;
+      if (message) document.getElementById('redirectStatus').textContent = message;
+    }
+
+    function startCountdown() {
+      document.getElementById('countdown').textContent = String(countdownValue);
+      countdownTimer = window.setInterval(function() {
+        countdownValue -= 1;
+        if (countdownValue > 0) {
+          document.getElementById('countdown').textContent = String(countdownValue);
+        } else {
+          window.clearInterval(countdownTimer);
+        }
+      }, 1000);
+      redirectTimer = window.setTimeout(openRoster, 3000);
+    }
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('service-worker.js').catch(function() {});
     }
 
-    // Handle the beforeinstallprompt event
-    window.addEventListener('beforeinstallprompt', function(e) {
-      e.preventDefault();
-      deferredPrompt = e;
-      document.getElementById('shareButton').classList.remove('hidden');
+    window.addEventListener('beforeinstallprompt', function(event) {
+      event.preventDefault();
+      deferredInstallPrompt = event;
     });
 
-    // Share to Homescreen button
-    document.getElementById('shareButton').addEventListener('click', function() {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        deferredPrompt.userChoice.then(function(choiceResult) {
-          if (choiceResult.outcome === 'accepted') {
-            console.log('User accepted the install prompt');
-          } else {
-            console.log('User dismissed the install prompt');
-          }
-          deferredPrompt = null;
+    window.addEventListener('appinstalled', function() {
+      deferredInstallPrompt = null;
+      document.getElementById('installHelp').textContent = 'PED Roster was added to your home screen.';
+    });
+
+    document.getElementById('installButton').addEventListener('click', function() {
+      var installHelp = document.getElementById('installHelp');
+      stopCountdown('Automatic opening paused.');
+
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        deferredInstallPrompt.userChoice.then(function() {
+          deferredInstallPrompt = null;
+          installHelp.textContent = 'You can now open the roster, or use the new home-screen icon if installed.';
         });
+        return;
       }
+
+      var isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      installHelp.textContent = isIos
+        ? 'On iPhone or iPad: tap Share, then choose Add to Home Screen.'
+        : 'Open your browser menu and choose Install app or Add to Home screen.';
     });
 
-    // Skip button
-    document.getElementById('skipButton').addEventListener('click', function() {
-      clearInterval(countdownInterval);
-      window.location.replace(rosterUrl);
-    });
-
-    // Countdown timer
-    function updateCountdown() {
-      countdownSeconds--;
-      document.getElementById('countdown').textContent = countdownSeconds;
-      document.getElementById('skipButton').textContent = 'Skip (' + countdownSeconds + 's)';
-
-      if (countdownSeconds <= 0) {
-        clearInterval(countdownInterval);
-        window.location.replace(rosterUrl);
-      }
-    }
-
-    countdownInterval = setInterval(updateCountdown, 1000);
+    startCountdown();
   </script>
 </body>
 </html>
